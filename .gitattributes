@@ -1,2 +1,67 @@
-# Auto detect text files and perform LF normalization
-* text=auto
+# Ignore built-in IDE and compiler output
+*.elf
+*.hex
+*.eep
+*.bin
+*.lss
+*.sym
+*.map
+*.lst
+*.tmp
+
+# Ignore the build folder (where the Arduino CLI/IDE compiles to)
+build/
+# If using the classic Arduino IDE, it often creates a folder named after the sketch
+/applet/
+
+# Ignore OS-generated garbage files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# Ignore any personal IDE settings
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Ignore library build files (if you have a /lib folder)
+lib/**/*.elf
+lib/**/*.hex
+lib/**/*.eep
+
+# Ignore APK Files
+*.APK
+
+# Ignore other files
+*.txt
+# Arduino IDE build files - IGNORE EVERYTHING INSIDE /src/ EXCEPT SOURCE CODE
+src/build/
+src/*.elf
+src/*.bin
+src/*.hex
+src/*.eep
+src/*.lss
+src/*.sym
+src/*.map
+src/*.lst
+src/*.tmp
+src/*.d
+src/*.o
+
+# Ignore VSCode settings - these are personal
+.vscode/
+
+# Ignore system files
+.DS_Store
+Thumbs.db
+
+# Ignore any secrets file
+*_secret.h
+*_private.h
+credentials.h
