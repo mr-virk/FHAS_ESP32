@@ -202,8 +202,5 @@ void dhtSensorChk() {
 
     currentHumidity = dhtSensorPin.getHumidity();
     currentTemperature = dhtSensorPin.getTemperature();
-
-    Blynk.virtualWrite(V4, currentHumidity);
-    Blynk.virtualWrite(V5, currentTemperature);
   }
 }
