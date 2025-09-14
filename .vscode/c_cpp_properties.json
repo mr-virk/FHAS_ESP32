@@ -1,0 +1,24 @@
+{
+  "configurations": [
+    {
+      "name": "Arduino ESP32",
+      "includePath": [
+        // The core path is correct and confirmed
+        "C:/Users/sibgh/AppData/Local/Arduino15/packages/esp32/hardware/esp32/3.3.0/**",
+        // User and project libraries
+        "C:/Users/sibgh/Documents/Arduino/libraries/**",
+        "${workspaceFolder}/src",
+        "${workspaceFolder}/lib/**"
+      ],
+      "defines": [
+        "ESP32",
+        // UPDATE THIS LINE WITH THE NUMBER FROM VERBOSE OUTPUT!
+        "ARDUINO=10607"
+      ],
+      "cStandard": "gnu11",
+      "cppStandard": "gnu++11",
+      "intelliSenseMode": "gcc-x86"
+    }
+  ],
+  "version": 4
+}
