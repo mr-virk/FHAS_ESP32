@@ -32,10 +32,6 @@ volatile bool gasDetected = false;
 volatile bool motionDetected = false;
 volatile bool waterDetected = false;
 
-// Timing
-unsigned long lastDHT = 0;
-unsigned long lastLCD = 0;
-
 // Sensor data
 float temperature = 0, humidity = 0;
 bool flameDetected = false;
@@ -105,8 +101,6 @@ void loop()
   RunFunctions(); // Call the global millis function
 
   // Call the menu function that handles user input and background tasks
-
-  Blynk.run();
 
   delay(10);
 }
@@ -231,10 +225,6 @@ void detectMotion()
     lcd.setCursor(0, 1);
     lcd.print("Motion Detected!");
 
-    lcd_blynk.clear();
-    lcd_blynk.print(2, 0, "  WARNING! ");
-    lcd_blynk.print(0, 1, "Motion Detected!");
-
     // Backlight control
     for (uint8_t i = 0; i < 10; i++)
     {
@@ -255,9 +245,6 @@ void detectGas() {
   if (gasDetected == HIGH) {
     // Blynk.logEvent("gas_leakage", "Gas Leakage has been Detected!");
     alertFunction();
-
-    lcd_blynk.clear();
-    lcd_blynk.print(0, 0, " GAS LEAKAGE!");
   }
 }
 
@@ -300,35 +287,4 @@ void alertFunction() {
     delay(500);
   }
   lcd.clear();
-}
-
-/// @brief ///////////////////////
-/// @return //
-Void SerialDebugging()
-{
-  Serial.print("Humidity (%): ");
-  Serial.println(currentHumidity);
-  Serial.print("Temperature (C): ");
-  Serial.println(currentTemperature);
-}
-
-void SensorsData()
-{
-  flameDetected = digitalRead(FLAME_PIN);
-  gasDetected = digitalRead(GAS_PIN);
-  waterDetected = analogRead(WATER_PIN);
-  motionDetected = digitalRead(PIR_PIN);
-}
-
-void Alarm_Function()
-{
-  // Check sensors and trigger alarm if necessary
-  if (flameDetected || gasDetected)
-  {
-    tone(buzzer, 1000); // Sound the buzzer
-  }
-  else
-  {
-    noTone(buzzer); // Stop the buzzer
-  }
 }
