@@ -1,5 +1,4 @@
 // Libraries
-#include "test.h"
 #include <Wire.h>
 #include <dhtnew.h>
 #include <Arduino.h>
@@ -14,7 +13,7 @@ char pass[] = "Wifipass";
 LiquidCrystal_I2C lcd(0x3f, 16, 2); // Address, columns, rows 16x02
 
 // Pin mapping
-#define BUZZER 16
+#define BUZZER_PIN 16
 #define FLAME_PIN 17
 #define GAS_PIN 18
 #define RELAY1 19
@@ -23,30 +22,24 @@ LiquidCrystal_I2C lcd(0x3f, 16, 2); // Address, columns, rows 16x02
 #define WATER_PIN 22
 DHTNEW dhtSensorPin(12); // Intialize DHT Sensor
 
-// Timing
-unsigned long lastDHT = 0, lastLCD = 0;
-
-// Shared variables
-volatile bool flameDetected = false;
-volatile bool gasDetected = false;
-volatile bool motionDetected = false;
-volatile bool waterDetected = false;
-
-// Timing
-unsigned long lastDHT = 0;
-unsigned long lastLCD = 0;
-
 // Sensor data
 float temperature = 0, humidity = 0;
-bool flameDetected = false;
 bool gasDetected = false;
 bool waterDetected = false;
 bool motionDetected = false;
 
 // Variables
-int MotionState = LOW; // Stores the current state of the PIR sensor
+int MotionState; // Stores the current state of the PIR sensor
 int currentHumidity;
 int currentTemperature;
+int flameDetected;
+int gasDetected;
+
+unsigned long uptimeStartTime = 0;  // Records the start time of the device
+
+//For Backgruound Tasks
+unsigned long previousTime = 0;
+const unsigned long interval = 10;  // millisecond
 
 // LCD Charaters Map
 byte fire[8] = {B00000, B10000, B10100, B11101, B11111, B11111, B11111, B01110};
@@ -54,10 +47,7 @@ byte drop[8] = {B00000, B00100, B01110, B11111, B11111, B11111, B01110, B00000};
 byte temp[8] = {B01110, B01010, B01010, B01010, B01010, B10001, B10001, B01110};
 
 // Function Prototypes
-void readSensors();
-void readDHT();
-void updateLCD();
-void handleAlarms();
+
 
 void setup()
 {
@@ -70,7 +60,7 @@ void setup()
   pinMode(PIR_PIN, INPUT);
   pinMode(RELAY1, OUTPUT);
   pinMode(RELAY2, OUTPUT);
-  pinMode(BUZZER, OUTPUT);
+  pinMode(BUZZER_PIN, OUTPUT);
   digitalWrite(RELAY1, HIGH);
   digitalWrite(RELAY2, HIGH);
 
@@ -89,11 +79,9 @@ void setup()
   lcd.print(" Wifi...");
 
   Serial.println("Smart Home System Starting...");
-
-  delay(10);
-
   uptimeStartTime = millis(); // Record the start time of the device
   lcdpreview();
+  delay(10);
 }
 
 void loop()
@@ -101,20 +89,23 @@ void loop()
   unsigned long currentTime = millis();
 
   CheckUptime();
-
-  RunFunctions(); // Call the global millis function
-
-  // Call the menu function that handles user input and background tasks
-
-  Blynk.run();
-
-  delay(10);
 }
 
 void CheckUptime()
 {
   unsigned long currentMillis = millis();
   unsigned long uptimeSeconds = (currentMillis - uptimeStartTime) / 1000;
+
+  sensorsReading();
+}
+
+void sensorsReading(){
+  readDHT();
+  detectMotion();
+  detectGas();
+  detectFlame();
+  lcdDefault();
+  delay(10);
 }
 
 void lcdpreview()
@@ -136,12 +127,12 @@ void lcdpreview()
   {
     // Turn backlight off
     lcd.noBacklight();
-    tone(buzzer, 1000);
+    tone(BUZZER_PIN, 1000);
     delay(500);
 
     // Turn backlight on
     lcd.backlight();
-    noTone(buzzer);
+    noTone(BUZZER_PIN);
     delay(500);
   }
   lcd.clear();
@@ -149,10 +140,6 @@ void lcdpreview()
 
 void lcdDefault()
 {
-
-  if (millis() - lastLCD > 1000)
-  {
-    lastLCD = millis();
     lcd.clear();
     lcd.setCursor(0, 0);
     lcd.write(1);
@@ -168,7 +155,6 @@ void lcdDefault()
     lcd.print(currentHumidity);
     lcd.setCursor(12, 1);
     lcd.print(currentTemperature);
-  }
 }
 
 void readDHT()
@@ -231,19 +217,15 @@ void detectMotion()
     lcd.setCursor(0, 1);
     lcd.print("Motion Detected!");
 
-    lcd_blynk.clear();
-    lcd_blynk.print(2, 0, "  WARNING! ");
-    lcd_blynk.print(0, 1, "Motion Detected!");
-
     // Backlight control
     for (uint8_t i = 0; i < 10; i++)
     {
       lcd.noBacklight();
-      tone(buzzer, 1000);
+      tone(BUZZER_PIN, 1000);
       delay(300);
 
       lcd.backlight();
-      noTone(buzzer);
+      noTone(BUZZER_PIN);
       delay(300);
     }
     lcd.clear();
@@ -251,25 +233,19 @@ void detectMotion()
 }
 
 void detectGas() {
-  int gasDetected = digitalRead(GAS_PIN);  //sensor has inverted logic
+  gasDetected = digitalRead(GAS_PIN);  //sensor has inverted logic
   if (gasDetected == HIGH) {
     // Blynk.logEvent("gas_leakage", "Gas Leakage has been Detected!");
     alertFunction();
-
-    lcd_blynk.clear();
-    lcd_blynk.print(0, 0, " GAS LEAKAGE!");
   }
 }
 
 void detectFlame() {
-  int flameDetected = digitalRead(FLAME_PIN);
+  flameDetection= digitalRead(FLAME_PIN);
   //Serial.println(flameValue);
-  if (flameDetected == HIGH) {
+  if (flameDetection == HIGH) {
     // Blynk.logEvent("fire_alarm", "Fire has been Detected!");
     alertFunction();
-
-    lcd_blynk.clear();
-    lcd_blynk.print(0, 0, "FLAME DETECTED!!!");
   }
 }
 
@@ -282,53 +258,17 @@ void alertFunction() {
   lcd.setCursor(15, 0);
   lcd.write(0);
   lcd.setCursor(0, 1);
-  lcd.print(" Fire Detected! ");
-
-  lcd_blynk.clear();
-  lcd_blynk.print(2, 0, "  WARNING! ");
-  lcd_blynk.print(0, 1, " Fire Detected! ");
-
+  lcd.print((fireDetected || gasDetected) ? " Fire Detected! " : " Gas Detected! ");
 
   // Backlight control
   for (uint8_t i = 0; i < 30; i++) {
     lcd.noBacklight();
-    tone(buzzer, 1000);
+    tone(BUZZER_PIN, 1000);
     delay(500);
 
     lcd.backlight();
-    noTone(buzzer);
+    noTone(BUZZER_PIN);
     delay(500);
   }
   lcd.clear();
-}
-
-/// @brief ///////////////////////
-/// @return //
-Void SerialDebugging()
-{
-  Serial.print("Humidity (%): ");
-  Serial.println(currentHumidity);
-  Serial.print("Temperature (C): ");
-  Serial.println(currentTemperature);
-}
-
-void SensorsData()
-{
-  flameDetected = digitalRead(FLAME_PIN);
-  gasDetected = digitalRead(GAS_PIN);
-  waterDetected = analogRead(WATER_PIN);
-  motionDetected = digitalRead(PIR_PIN);
-}
-
-void Alarm_Function()
-{
-  // Check sensors and trigger alarm if necessary
-  if (flameDetected || gasDetected)
-  {
-    tone(buzzer, 1000); // Sound the buzzer
-  }
-  else
-  {
-    noTone(buzzer); // Stop the buzzer
-  }
 }
