@@ -1,274 +1,176 @@
+// Blynk Metadata
+#define BLYNK_TEMPLATE_ID "TMPL6eWdpZcmo"
+#define BLYNK_TEMPLATE_NAME "ESP32"
+#define BLYNK_AUTH_TOKEN "1sngMkuwDlrKcLqmvCFhKKK7gf_YUn1i"
+
 // Libraries
 #include <Wire.h>
-#include <dhtnew.h>
 #include <Arduino.h>
 #include <LiquidCrystal_I2C.h>
+#include <DHTesp.h>
+#include <WiFi.h>
+#include <WiFiClient.h>
+#include <BlynkSimpleEsp32.h>
 
-// Your WiFi credentials.
-// Set password to "" for open networks.
+// Wifi Credentials
 char ssid[] = "Wifi";
-char pass[] = "Wifipass";
+char pass[] = "pass";
 
-// LCD object
-LiquidCrystal_I2C lcd(0x3f, 16, 2); // Address, columns, rows 16x02
+// LCD Defination - I2C Address = 0x27
+LiquidCrystal_I2C lcd(0x27, 16, 2);
 
-// Pin mapping
-#define BUZZER_PIN 16
-#define FLAME_PIN 17
-#define GAS_PIN 18
-#define RELAY1 19
-#define RELAY2 20
-#define PIR_PIN 21
-#define WATER_PIN 22
-DHTNEW dhtSensorPin(12); // Intialize DHT Sensor
+// Pin Definations
+const int flamePin = 18;
+const int gasPin = 19;
+const int pirPin = 26;
+const int relayPIR = 25; // Relay for PIR
+const int relayWater = 23; // Relay for Water Pump
+// const int buzzerPin  = 17;
+const int waterPin = 34; // Water Level Sensor (Analog input)
 
-// Sensor data
-float temperature = 0, humidity = 0;
-bool gasDetected = false;
-bool waterDetected = false;
-bool motionDetected = false;
+// DHT Object with Pin Defination
+DHTesp dht;
+const int dhtPin = 16; // GPIO16 for DHT11
 
 // Variables
-int MotionState; // Stores the current state of the PIR sensor
-int currentHumidity;
-int currentTemperature;
-int flameDetected;
-int gasDetected;
+int waterLevelPercent = 0;
 
-unsigned long uptimeStartTime = 0;  // Records the start time of the device
+// Main Intialization Function
+void setup() {
+  Serial.begin(115200);
 
-//For Backgruound Tasks
-unsigned long previousTime = 0;
-const unsigned long interval = 10;  // millisecond
-
-// LCD Charaters Map
-byte fire[8] = {B00000, B10000, B10100, B11101, B11111, B11111, B11111, B01110};
-byte drop[8] = {B00000, B00100, B01110, B11111, B11111, B11111, B01110, B00000};
-byte temp[8] = {B01110, B01010, B01010, B01010, B01010, B10001, B10001, B01110};
-
-// Function Prototypes
-
-
-void setup()
-{
-  Serial.begin(115200); // Serial rate
-
-  // Initialize pins
-  pinMode(FLAME_PIN, INPUT);
-  pinMode(GAS_PIN, INPUT);
-  pinMode(WATER_PIN, INPUT);
-  pinMode(PIR_PIN, INPUT);
-  pinMode(RELAY1, OUTPUT);
-  pinMode(RELAY2, OUTPUT);
-  pinMode(BUZZER_PIN, OUTPUT);
-  digitalWrite(RELAY1, HIGH);
-  digitalWrite(RELAY2, HIGH);
-
-  // Initialize LCD
-  lcd.createChar(0, fire);
-  lcd.createChar(1, drop);
-  lcd.createChar(2, temp);
-
-  lcd.init();      // lcd start
-  lcd.backlight(); // backlight on
-  lcd.clear();     // lcd clear
-
+  // LCD Default Screen
+  Wire.begin(21, 22);
+  lcd.init();
+  lcd.backlight();
+  lcd.clear();
   lcd.setCursor(0, 0);
-  lcd.print(" Connecting to ");
-  lcd.setCursor(0, 1);
-  lcd.print(" Wifi...");
+  lcd.print("System Starting");
 
-  Serial.println("Smart Home System Starting...");
-  uptimeStartTime = millis(); // Record the start time of the device
-  lcdpreview();
-  delay(10);
-}
+  // Sensors Intiallization
+  dht.setup(dhtPin, DHTesp::DHT11);
+  pinMode(flamePin, INPUT);
+  pinMode(gasPin, INPUT);
+  pinMode(pirPin, INPUT);
+  pinMode(relayPIR, OUTPUT);
+  pinMode(relayWater, OUTPUT);
 
-void loop()
-{
-  unsigned long currentTime = millis();
+  // Connect Blynk and WiFi
+  Blynk.begin(BLYNK_AUTH_TOKEN, ssid, pass);
 
-  CheckUptime();
-}
-
-void CheckUptime()
-{
-  unsigned long currentMillis = millis();
-  unsigned long uptimeSeconds = (currentMillis - uptimeStartTime) / 1000;
-
-  sensorsReading();
-}
-
-void sensorsReading(){
-  readDHT();
-  detectMotion();
-  detectGas();
-  detectFlame();
-  lcdDefault();
-  delay(10);
-}
-
-void lcdpreview()
-{
+  // LCD Update
+  lcd.clear();
   lcd.setCursor(0, 0);
-  lcd.print("Home Automation");
-  lcd.setCursor(0, 1);
-  lcd.print("System");
-
-  lcd.setCursor(6, 1);
-  lcd.write(0);
-  lcd.setCursor(7, 1);
-  lcd.write(1);
-  lcd.setCursor(8, 1);
-  lcd.write(2);
-
-  // Backlight control
-  for (uint8_t i = 0; i < 3; i++)
-  {
-    // Turn backlight off
-    lcd.noBacklight();
-    tone(BUZZER_PIN, 1000);
-    delay(500);
-
-    // Turn backlight on
-    lcd.backlight();
-    noTone(BUZZER_PIN);
-    delay(500);
-  }
+  lcd.print("WiFi-Blynk Ready");
+  delay(2000);
   lcd.clear();
 }
 
-void lcdDefault()
-{
-    lcd.clear();
-    lcd.setCursor(0, 0);
-    lcd.write(1);
-    lcd.setCursor(2, 0);
-    lcd.print("Humi. (%):"); // 0-9
-
-    lcd.setCursor(0, 1);
-    lcd.write(2);
-    lcd.setCursor(2, 1);
-    lcd.print("Temp. (C):"); // 0-10
-
-    lcd.setCursor(12, 0);
-    lcd.print(currentHumidity);
-    lcd.setCursor(12, 1);
-    lcd.print(currentTemperature);
+// Main Primary Function
+void loop() {
+  Blynk.run();
+  GatherDataFunction();
+  delay(1000);
 }
 
-void readDHT()
-{
-  // READ DATA
-  int chk = dhtSensorPin.read();
+// PIR Relay control from Blynk App
+BLYNK_WRITE(V5) {
+  int value = param.asInt();
+  digitalWrite(relayPIR, value);
+}
 
-  String dhtErrorGen;
+// Water Relay control from App
+BLYNK_WRITE(V6) {
+  int value = param.asInt();
+  digitalWrite(relayWater, value);
+}
 
-  if (chk != DHTLIB_WAITING_FOR_READ)
-  {
-    switch (chk)
-    {
-    case DHTLIB_OK:
-      dhtErrorGen = chk;
-      break;
-    case DHTLIB_ERROR_CHECKSUM:
-      dhtErrorGen = chk;
-      break;
-    case DHTLIB_ERROR_TIMEOUT_A:
-      dhtErrorGen = chk;
-      break;
-    case DHTLIB_ERROR_TIMEOUT_B:
-      dhtErrorGen = chk;
-      break;
-    case DHTLIB_ERROR_TIMEOUT_C:
-      dhtErrorGen = chk;
-      break;
-    case DHTLIB_ERROR_TIMEOUT_D:
-      dhtErrorGen = chk;
-      break;
-    case DHTLIB_ERROR_SENSOR_NOT_READY:
-      dhtErrorGen = chk;
-      break;
-    case DHTLIB_ERROR_BIT_SHIFT:
-      dhtErrorGen = chk;
-      break;
-    default:
-      dhtErrorGen = chk;
-      break;
-    }
+// ALert Tune Melody Function
+void AlertTune() {
+  int melody[] = { 1318, 1568, 1976, 1760, 1568, 1318, 1568, 1976, 1760, 1568 };
+  int noteDurations[] = { 150, 150, 300, 300, 300, 150, 150, 300, 300, 300 };
 
-    currentHumidity = dhtSensorPin.getHumidity();
-    currentTemperature = dhtSensorPin.getTemperature();
+  for (int i = 0; i < 10; i++) {
+    ledcWriteTone(0, melody[i]);
+    delay(noteDurations[i]);
+    ledcWriteTone(0, 0);
+    delay(50);
   }
 }
 
-void detectMotion()
-{
-  motionDetected = digitalRead(PIR_PIN);
-  if (motionDetected == HIGH)
-  {
-    // Blynk.logEvent("motion_detected", "Alert: Motion has been Detected!");
-    lcd.setCursor(0, 0);
-    lcd.write(1);
-    lcd.setCursor(2, 0);
-    lcd.print("  WARNING! ");
-    lcd.setCursor(15, 0);
-    lcd.write(1);
-    lcd.setCursor(0, 1);
-    lcd.print("Motion Detected!");
-
-    // Backlight control
-    for (uint8_t i = 0; i < 10; i++)
-    {
-      lcd.noBacklight();
-      tone(BUZZER_PIN, 1000);
-      delay(300);
-
-      lcd.backlight();
-      noTone(BUZZER_PIN);
-      delay(300);
-    }
-    lcd.clear();
-  }
-}
-
-void detectGas() {
-  gasDetected = digitalRead(GAS_PIN);  //sensor has inverted logic
-  if (gasDetected == HIGH) {
-    // Blynk.logEvent("gas_leakage", "Gas Leakage has been Detected!");
-    alertFunction();
-  }
-}
-
-void detectFlame() {
-  flameDetection= digitalRead(FLAME_PIN);
-  //Serial.println(flameValue);
-  if (flameDetection == HIGH) {
-    // Blynk.logEvent("fire_alarm", "Fire has been Detected!");
-    alertFunction();
-  }
-}
-
-void alertFunction() {
-  lcd.clear();
+// Main Secondry Function
+void GatherDataFunction() {
   lcd.setCursor(0, 0);
-  lcd.write(0);
-  lcd.setCursor(2, 0);
-  lcd.print("  WARNING! ");
-  lcd.setCursor(15, 0);
-  lcd.write(0);
-  lcd.setCursor(0, 1);
-  lcd.print((fireDetected || gasDetected) ? " Fire Detected! " : " Gas Detected! ");
 
-  // Backlight control
-  for (uint8_t i = 0; i < 30; i++) {
-    lcd.noBacklight();
-    tone(BUZZER_PIN, 1000);
-    delay(500);
+  // DHT Sensor
+  TempAndHumidity data = dht.getTempAndHumidity();
+  if (!isnan(data.temperature) && !isnan(data.humidity)) {
+    Serial.printf("[DHT OK] H: %.0f%%  T: %.0f\n", data.humidity, data.temperature);
+    lcd.print("T:");
+    lcd.print((int)data.temperature);
+    lcd.print("C H:");
+    lcd.print((int)data.humidity);
 
-    lcd.backlight();
-    noTone(BUZZER_PIN);
-    delay(500);
+    // Send to Blynk
+    Blynk.virtualWrite(V1, (int)data.temperature);
+    Blynk.virtualWrite(V2, (int)data.humidity);
+  } else {
+    Serial.println("[DHT ERROR]");
+    lcd.print("DHT ERROR     ");
   }
-  lcd.clear();
+
+  // Flame Sensor
+  int flameVal = digitalRead(flamePin);
+  Serial.print("Flame: " + flameVal);
+
+  if (flameVal == LOW) {
+    ledcWriteTone(0, 2000); // Continuous beep
+  } else {
+    ledcWriteTone(0, 0);
+  }
+
+  // GAS Sensor
+  int gasVal = digitalRead(gasPin);
+  Serial.print("Gas: ");
+  Serial.println(gasVal);
+  if (gasVal == LOW) {
+    AlertTune();
+  }
+
+  // PIR Sensor
+  int motion = digitalRead(pirPin);
+  Serial.print("Motion: " + motion);
+  if (motion == HIGH) {
+    digitalWrite(relayPIR, HIGH);
+  } else {
+    digitalWrite(relayPIR, LOW);
+  }
+  // Send to Blynk
+  Blynk.virtualWrite(V4, motion);
+
+  // Water Level
+  int rawValue = analogRead(waterPin);
+  waterLevelPercent = map(rawValue, 0, 4095, 0, 100);
+
+  Serial.print("Water Level: ");
+  Serial.print(waterLevelPercent);
+  Serial.println("%");
+
+  // Control water pump relay automatically based on the water level
+  // Max Threashold is 25% to start the pump
+  if (waterLevelPercent <= 25) {
+    digitalWrite(relayWater, HIGH);  // Pump ON
+  } else {
+    digitalWrite(relayWater, LOW);  // Pump OFF
+  }
+
+  // Send to Blynk
+  Blynk.virtualWrite(V3, waterLevelPercent);
+
+  // Update LCD line 2
+  lcd.setCursor(0, 1);
+  lcd.print(" F:" + flameVal);
+  lcd.print(" G:" + gasVal);
+  lcd.print(" M:" + motion);
+  lcd.print(" W:" + waterLevelPercent);
 }
